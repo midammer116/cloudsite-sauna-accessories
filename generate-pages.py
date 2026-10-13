@@ -63,6 +63,34 @@ def pick(pool):
     return pool[_rng.randrange(len(pool))]
 
 
+def json_ld_webpage(title, meta_desc, url):
+    import json as _json
+    data = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": title,
+        "description": meta_desc,
+        "url": url,
+        "inLanguage": "en",
+    }
+    return _json.dumps(data, ensure_ascii=False)
+
+
+def inject_schema(html, fname):
+    """Inject a WebPage JSON-LD block into the <head> of a generated page."""
+    import re as _re
+    m = _re.search(r"<title>(.*?)</title>", html, _re.S)
+    title = (m.group(1).strip().replace("&amp;", "&") if m else "")
+    m = _re.search(r'<meta name="description" content="([^"]*)"', html)
+    desc = m.group(1) if m else ""
+    url = "/index.html" if fname == "index.html" else "/" + fname
+    block = ('<script type="application/ld+json">'
+             + json_ld_webpage(title, desc, url)
+             + '</script>\n')
+    i = html.find("</head>")
+    return html[:i] + block + html[i:] if i != -1 else html
+
+
 def build_page(slug, title, description, h1, h2s, closing, related):
     hero_img, hero_alt = pick([(f, IMAGE_ALT[f]) for f in IMAGE_FILES])
     vid_id = pick(VIDEOS)
@@ -445,7 +473,7 @@ def main():
         else:
             html = build_page(slug, title, description, h1, h2s, closing, related)
         out = BASE / f"{slug}.html"
-        out.write_text(html, encoding="utf-8")
+        out.write_text(inject_schema(html, f"{slug}.html"), encoding="utf-8")
         print(f"wrote {out.name} ({out.stat().st_size} bytes)")
     print("\nDone.")
 
